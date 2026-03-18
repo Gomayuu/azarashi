@@ -2,186 +2,191 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Seal Battle Royale</title>
+<title>プロセカ風 音ゲー</title>
 <style>
 body {
   margin: 0;
+  background: linear-gradient(#0a0a0a, #1a1a2e);
+  color: white;
+  font-family: sans-serif;
+  text-align: center;
+}
+
+#game {
+  position: relative;
+  width: 420px;
+  height: 650px;
+  margin: 20px auto;
+  background: rgba(0,0,0,0.8);
+  border: 2px solid #fff;
   overflow: hidden;
-  font-family: Arial, sans-serif;
-  background: #87ceeb;
 }
-#gameCanvas {
-  display: block;
-  background: linear-gradient(#87ceeb, #e0f7ff);
-}
-#ui {
+
+.lane {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  color: white;
-  font-size: 18px;
-  text-shadow: 1px 1px 2px black;
-}
-#startScreen {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
+  width: 25%;
   height: 100%;
-  background: rgba(0,0,0,0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  color: white;
+  border-left: 1px solid #444;
 }
+
+.note {
+  position: absolute;
+  width: 25%;
+  height: 20px;
+  background: linear-gradient(cyan, blue);
+  border-radius: 6px;
+  box-shadow: 0 0 10px cyan;
+}
+
+#judgeLine {
+  position: absolute;
+  bottom: 80px;
+  width: 100%;
+  height: 6px;
+  background: red;
+}
+
+#combo {
+  font-size: 28px;
+  margin-top: 10px;
+}
+
+#result {
+  font-size: 24px;
+  height: 30px;
+}
+
 button {
   padding: 10px 20px;
   font-size: 18px;
-  cursor: pointer;
+  margin-top: 10px;
 }
 </style>
 </head>
 <body>
-<div id="ui">HP: <span id="hp">100</span> | スコア: <span id="score">0</span></div>
-<div id="startScreen">
-  <h1>Seal Battle Royale</h1>
-  <button onclick="startGame()">スタート</button>
+
+<h1>プロセカ風 音ゲー</h1>
+<div id="combo">Combo: 0</div>
+<div id="result"></div>
+<button onclick="startGame()">START</button>
+
+<div id="game">
+  <div id="judgeLine"></div>
 </div>
-<canvas id="gameCanvas"></canvas>
+
 <script>
-const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+const game = document.getElementById("game");
+const comboDisplay = document.getElementById("combo");
+const resultDisplay = document.getElementById("result");
 
-let keys = {};
-let bullets = [];
-let enemies = [];
-let score = 0;
-let gameRunning = false;
+const BPM = 154; // 千本桜っぽい速さ
+const beatInterval = 60000 / BPM;
 
-const player = {
-  x: canvas.width / 2,
-  y: canvas.height / 2,
-  size: 20,
-  speed: 5,
-  hp: 100
-};
+let notes = [];
+let combo = 0;
+let playing = false;
+let startTime;
 
-document.addEventListener('keydown', e => keys[e.key] = true);
-document.addEventListener('keyup', e => keys[e.key] = false);
-document.addEventListener('click', shoot);
-
-function shoot(e) {
-  if (!gameRunning) return;
-  const angle = Math.atan2(e.clientY - player.y, e.clientX - player.x);
-  bullets.push({
-    x: player.x,
-    y: player.y,
-    dx: Math.cos(angle) * 10,
-    dy: Math.sin(angle) * 10
+// 譜面（秒単位）
+const chart = [];
+for (let i = 0; i < 100; i++) {
+  chart.push({
+    time: i * (beatInterval / 1000),
+    lane: Math.floor(Math.random() * 4)
   });
 }
 
-function spawnEnemy() {
-  const x = Math.random() * canvas.width;
-  const y = Math.random() * canvas.height;
-  enemies.push({ x, y, size: 20, hp: 30 });
+// ノーツ生成
+function spawnNote(lane) {
+  const note = document.createElement("div");
+  note.className = "note";
+  note.style.left = lane * 25 + "%";
+  note.style.top = "0px";
+  note.dataset.lane = lane;
+  game.appendChild(note);
+  notes.push(note);
 }
 
-setInterval(() => {
-  if (gameRunning) spawnEnemy();
-}, 1500);
+// 判定
+function judge(noteY) {
+  if (noteY > 540 && noteY < 580) return "PERFECT";
+  if (noteY > 500 && noteY < 620) return "GOOD";
+  return "MISS";
+}
 
+// 入力
+document.addEventListener("keydown", (e) => {
+  if (!playing) return;
+
+  const keyMap = { d:0, f:1, j:2, k:3 };
+  const lane = keyMap[e.key];
+  if (lane === undefined) return;
+
+  for (let i = 0; i < notes.length; i++) {
+    let note = notes[i];
+    if (parseInt(note.dataset.lane) === lane) {
+      let y = parseFloat(note.style.top);
+      let result = judge(y);
+
+      if (result !== "MISS") {
+        combo++;
+        resultDisplay.textContent = result;
+        note.remove();
+        notes.splice(i, 1);
+        break;
+      } else {
+        combo = 0;
+        resultDisplay.textContent = "MISS";
+      }
+    }
+  }
+
+  comboDisplay.textContent = "Combo: " + combo;
+});
+
+// 更新処理
 function update() {
-  if (!gameRunning) return;
+  if (!playing) return;
 
-  if (keys['w']) player.y -= player.speed;
-  if (keys['s']) player.y += player.speed;
-  if (keys['a']) player.x -= player.speed;
-  if (keys['d']) player.x += player.speed;
+  const currentTime = (Date.now() - startTime) / 1000;
 
-  bullets.forEach(b => {
-    b.x += b.dx;
-    b.y += b.dy;
-  });
-
-  enemies.forEach(e => {
-    const angle = Math.atan2(player.y - e.y, player.x - e.x);
-    e.x += Math.cos(angle) * 2;
-    e.y += Math.sin(angle) * 2;
-
-    const dist = Math.hypot(player.x - e.x, player.y - e.y);
-    if (dist < player.size + e.size) {
-      player.hp -= 1;
+  // ノーツ出現
+  chart.forEach((n, i) => {
+    if (!n.spawned && currentTime >= n.time) {
+      spawnNote(n.lane);
+      n.spawned = true;
     }
   });
 
-  bullets.forEach((b, bi) => {
-    enemies.forEach((e, ei) => {
-      const dist = Math.hypot(b.x - e.x, b.y - e.y);
-      if (dist < e.size) {
-        e.hp -= 10;
-        bullets.splice(bi, 1);
-        if (e.hp <= 0) {
-          enemies.splice(ei, 1);
-          score += 10;
-        }
-      }
-    });
+  // ノーツ移動
+  notes.forEach((note, index) => {
+    let y = parseFloat(note.style.top);
+    y += 5;
+    note.style.top = y + "px";
+
+    if (y > 650) {
+      note.remove();
+      notes.splice(index, 1);
+      combo = 0;
+    }
   });
 
-  document.getElementById('hp').textContent = player.hp;
-  document.getElementById('score').textContent = score;
-
-  if (player.hp <= 0) {
-    gameRunning = false;
-    alert('ゲームオーバー！スコア: ' + score);
-    location.reload();
-  }
+  comboDisplay.textContent = "Combo: " + combo;
+  requestAnimationFrame(update);
 }
 
-function drawSeal(x, y, size, color) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(x, y, size, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = 'black';
-  ctx.beginPath();
-  ctx.arc(x - 5, y - 5, 3, 0, Math.PI * 2);
-  ctx.arc(x + 5, y - 5, 3, 0, Math.PI * 2);
-  ctx.fill();
-}
-
-function render() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  drawSeal(player.x, player.y, player.size, 'white');
-
-  bullets.forEach(b => {
-    ctx.fillStyle = 'yellow';
-    ctx.fillRect(b.x, b.y, 5, 5);
-  });
-
-  enemies.forEach(e => {
-    drawSeal(e.x, e.y, e.size, 'gray');
-  });
-}
-
-function gameLoop() {
-  update();
-  render();
-  requestAnimationFrame(gameLoop);
-}
-
+// スタート
 function startGame() {
-  document.getElementById('startScreen').style.display = 'none';
-  gameRunning = true;
-  gameLoop();
+  notes = [];
+  combo = 0;
+  resultDisplay.textContent = "";
+  chart.forEach(n => n.spawned = false);
+
+  startTime = Date.now();
+  playing = true;
+  update();
 }
 </script>
+
 </body>
 </html>
