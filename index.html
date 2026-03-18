@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>アザラシテトリス</title>
+<title>アザラシスイカゲーム</title>
 <style>
 body {
   margin: 0;
-  background: linear-gradient(#87ceeb, #e0f7ff);
+  background: linear-gradient(#aee, #eef);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -15,26 +15,107 @@ body {
   font-family: sans-serif;
 }
 #game {
-  display: flex;
+  text-align: center;
 }
 canvas {
   background: #003;
-  border: 4px solid #fff;
-}
-#info {
-  color: #003;
-  margin-left: 20px;
-}
-button {
-  padding: 10px;
-  margin-top: 10px;
+  border-radius: 10px;
 }
 </style>
 </head>
 <body>
 <div id="game">
-  <canvas id="tetris" width="240" height="400"></canvas>
-  <div id="info">
-    <h2>🦭 アザラシテトリス</h2>
-    <p>スコア: <span
+  <h2>🦭 アザラシスイカゲーム</h2>
+  <p>クリックでアザラシを落とす！同じサイズで合体！</p>
+  <p>スコア: <span id="score">0</span></p>
+  <canvas id="canvas" width="300" height="500"></canvas>
+</div>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+let seals = [];
+let score = 0;
+
+class Seal {
+  constructor(x, size) {
+    this.x = x;
+    this.y = 0;
+    this.size = size;
+    this.radius = size * 10;
+    this.dy = 2;
+  }
+
+  update() {
+    this.y += this.dy;
+  }
+
+  draw() {
+    ctx.beginPath();
+    ctx.fillStyle = `hsl(${this.size * 40}, 70%, 60%)`;
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#000';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('🦭', this.x - 6, this.y + 4);
+  }
+}
+
+function spawnSeal(x) {
+  const size = Math.floor(Math.random() * 3) + 1;
+  seals.push(new Seal(x, size));
+}
+
+function mergeSeals() {
+  for (let i = 0; i < seals.length; i++) {
+    for (let j = i + 1; j < seals.length; j++) {
+      const a = seals[i];
+      const b = seals[j];
+
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < a.radius + b.radius && a.size === b.size) {
+        a.size++;
+        a.radius = a.size * 10;
+        seals.splice(j, 1);
+        score += 10;
+        document.getElementById('score').innerText = score;
+        break;
+      }
+    }
+  }
+}
+
+function update() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  seals.forEach(seal => {
+    seal.update();
+
+    if (seal.y + seal.radius > canvas.height) {
+      seal.y = canvas.height - seal.radius;
+      seal.dy = 0;
+    }
+
+    seal.draw();
+  });
+
+  mergeSeals();
+
+  requestAnimationFrame(update);
+}
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  spawnSeal(x);
+});
+
+update();
+</script>
+</body>
+</html>
 
