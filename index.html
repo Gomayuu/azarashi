@@ -1,89 +1,40 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>ガチャゲーム</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      background: linear-gradient(135deg, #4facfe, #00f2fe);
-      color: white;
-    }
-    h1 {
-      margin-top: 20px;
-    }
-    #gachaBtn {
-      padding: 15px 30px;
-      font-size: 18px;
-      border: none;
-      border-radius: 10px;
-      background-color: gold;
-      color: black;
-      cursor: pointer;
-      margin-top: 30px;
-    }
-    #gachaBtn:hover {
-      background-color: orange;
-    }
-    #result {
-      margin-top: 40px;
-      font-size: 24px;
-      font-weight: bold;
-    }
-    .card {
-      margin: 20px auto;
-      padding: 20px;
-      width: 200px;
-      border-radius: 15px;
-      background-color: rgba(255,255,255,0.2);
-      box-shadow: 0 0 15px rgba(0,0,0,0.3);
-    }
-    .SSR { border: 3px solid gold; }
-    .SR { border: 3px solid purple; }
-    .R { border: 3px solid blue; }
-    .N { border: 3px solid gray; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>アザラシテトリス</title>
+<style>
+body {
+  margin: 0;
+  background: linear-gradient(#87ceeb, #e0f7ff);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: sans-serif;
+}
+#game {
+  display: flex;
+}
+canvas {
+  background: #003;
+  border: 4px solid #fff;
+}
+#info {
+  color: #003;
+  margin-left: 20px;
+}
+button {
+  padding: 10px;
+  margin-top: 10px;
+}
+</style>
 </head>
 <body>
-  <h1>🎮 ガチャゲーム</h1>
-  <button id="gachaBtn">ガチャを引く！</button>
-  <div id="result"></div>
-
-  <script>
-    const characters = [
-      { name: "伝説のドラゴン", rarity: "SSR", rate: 5 },
-      { name: "勇者", rarity: "SR", rate: 15 },
-      { name: "魔法使い", rarity: "SR", rate: 15 },
-      { name: "戦士", rarity: "R", rate: 30 },
-      { name: "弓使い", rarity: "R", rate: 20 },
-      { name: "村人", rarity: "N", rate: 15 }
-    ];
-
-    function drawGacha() {
-      const rand = Math.random() * 100;
-      let sum = 0;
-
-      for (let char of characters) {
-        sum += char.rate;
-        if (rand <= sum) {
-          return char;
-        }
-      }
-    }
-
-    document.getElementById("gachaBtn").addEventListener("click", () => {
-      const result = drawGacha();
-      const resultDiv = document.getElementById("result");
-
-      resultDiv.innerHTML = `
-        <div class="card ${result.rarity}">
-          <div>レア度: ${result.rarity}</div>
-          <div>${result.name}</div>
-        </div>
-      `;
-    });
-  </script>
-</body>
-</html>
+<div id="game">
+  <canvas id="tetris" width="240" height="400"></canvas>
+  <div id="info">
+    <h2>🦭 アザラシテトリス</h2>
+    <p>スコア: <span
 
