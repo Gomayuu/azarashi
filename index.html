@@ -2,191 +2,152 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>プロセカ風 音ゲー</title>
+<title>3D FPS（VALORANT風）</title>
 <style>
-body {
-  margin: 0;
-  background: linear-gradient(#0a0a0a, #1a1a2e);
+body { margin: 0; overflow: hidden; }
+canvas { display: block; }
+#info {
+  position: absolute;
+  top: 10px;
+  left: 10px;
   color: white;
   font-family: sans-serif;
-  text-align: center;
-}
-
-#game {
-  position: relative;
-  width: 420px;
-  height: 650px;
-  margin: 20px auto;
-  background: rgba(0,0,0,0.8);
-  border: 2px solid #fff;
-  overflow: hidden;
-}
-
-.lane {
-  position: absolute;
-  width: 25%;
-  height: 100%;
-  border-left: 1px solid #444;
-}
-
-.note {
-  position: absolute;
-  width: 25%;
-  height: 20px;
-  background: linear-gradient(cyan, blue);
-  border-radius: 6px;
-  box-shadow: 0 0 10px cyan;
-}
-
-#judgeLine {
-  position: absolute;
-  bottom: 80px;
-  width: 100%;
-  height: 6px;
-  background: red;
-}
-
-#combo {
-  font-size: 28px;
-  margin-top: 10px;
-}
-
-#result {
-  font-size: 24px;
-  height: 30px;
-}
-
-button {
-  padding: 10px 20px;
-  font-size: 18px;
-  margin-top: 10px;
 }
 </style>
 </head>
 <body>
+<div id="info">クリックして開始 / WASD移動 / SPACE射撃</div>
 
-<h1>プロセカ風 音ゲー</h1>
-<div id="combo">Combo: 0</div>
-<div id="result"></div>
-<button onclick="startGame()">START</button>
-
-<div id="game">
-  <div id="judgeLine"></div>
-</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
 
 <script>
-const game = document.getElementById("game");
-const comboDisplay = document.getElementById("combo");
-const resultDisplay = document.getElementById("result");
+let scene = new THREE.Scene();
+scene.background = new THREE.Color(0x222222);
 
-const BPM = 154; // 千本桜っぽい速さ
-const beatInterval = 60000 / BPM;
+let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+let renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
 
-let notes = [];
-let combo = 0;
-let playing = false;
-let startTime;
+// プレイヤー
+let velocity = new THREE.Vector3();
+let direction = new THREE.Vector3();
 
-// 譜面（秒単位）
-const chart = [];
-for (let i = 0; i < 100; i++) {
-  chart.push({
-    time: i * (beatInterval / 1000),
-    lane: Math.floor(Math.random() * 4)
-  });
+// 床
+let floor = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshBasicMaterial({color: 0x444444})
+);
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
+
+// 壁（VALORANT風の簡易マップ）
+function createBox(x,y,z,color=0x888888){
+  let box = new THREE.Mesh(
+    new THREE.BoxGeometry(10,10,10),
+    new THREE.MeshBasicMaterial({color})
+  );
+  box.position.set(x,y,z);
+  scene.add(box);
 }
+createBox(20,5,-20);
+createBox(-20,5,-30);
+createBox(0,5,-50);
 
-// ノーツ生成
-function spawnNote(lane) {
-  const note = document.createElement("div");
-  note.className = "note";
-  note.style.left = lane * 25 + "%";
-  note.style.top = "0px";
-  note.dataset.lane = lane;
-  game.appendChild(note);
-  notes.push(note);
-}
+// 敵（NPC）
+let enemy = new THREE.Mesh(
+  new THREE.BoxGeometry(5,5,5),
+  new THREE.MeshBasicMaterial({color: 0xff0000})
+);
+enemy.position.set(0,2,-30);
+scene.add(enemy);
 
-// 判定
-function judge(noteY) {
-  if (noteY > 540 && noteY < 580) return "PERFECT";
-  if (noteY > 500 && noteY < 620) return "GOOD";
-  return "MISS";
-}
+// カメラ初期位置
+camera.position.set(0, 5, 10);
 
-// 入力
-document.addEventListener("keydown", (e) => {
-  if (!playing) return;
+// マウス操作
+let yaw = 0;
+let pitch = 0;
 
-  const keyMap = { d:0, f:1, j:2, k:3 };
-  const lane = keyMap[e.key];
-  if (lane === undefined) return;
-
-  for (let i = 0; i < notes.length; i++) {
-    let note = notes[i];
-    if (parseInt(note.dataset.lane) === lane) {
-      let y = parseFloat(note.style.top);
-      let result = judge(y);
-
-      if (result !== "MISS") {
-        combo++;
-        resultDisplay.textContent = result;
-        note.remove();
-        notes.splice(i, 1);
-        break;
-      } else {
-        combo = 0;
-        resultDisplay.textContent = "MISS";
-      }
-    }
-  }
-
-  comboDisplay.textContent = "Combo: " + combo;
+document.body.addEventListener("click", () => {
+  document.body.requestPointerLock();
 });
 
-// 更新処理
-function update() {
-  if (!playing) return;
+document.addEventListener("mousemove", (e) => {
+  if (document.pointerLockElement === document.body) {
+    yaw -= e.movementX * 0.002;
+    pitch -= e.movementY * 0.002;
+    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+  }
+});
 
-  const currentTime = (Date.now() - startTime) / 1000;
+// キー入力
+let keys = {};
+document.addEventListener("keydown", e => keys[e.code] = true);
+document.addEventListener("keyup", e => keys[e.code] = false);
 
-  // ノーツ出現
-  chart.forEach((n, i) => {
-    if (!n.spawned && currentTime >= n.time) {
-      spawnNote(n.lane);
-      n.spawned = true;
+// 弾
+let bullets = [];
+
+function shoot(){
+  let bullet = new THREE.Mesh(
+    new THREE.SphereGeometry(0.5),
+    new THREE.MeshBasicMaterial({color: 0xffff00})
+  );
+  bullet.position.copy(camera.position);
+
+  let dir = new THREE.Vector3(0,0,-1);
+  dir.applyEuler(new THREE.Euler(pitch, yaw, 0));
+  bullet.velocity = dir.multiplyScalar(2);
+
+  scene.add(bullet);
+  bullets.push(bullet);
+}
+
+// 射撃（スペース）
+document.addEventListener("keydown", e => {
+  if (e.code === "Space") shoot();
+});
+
+// ループ
+function animate(){
+  requestAnimationFrame(animate);
+
+  // 視点
+  camera.rotation.set(pitch, yaw, 0);
+
+  // 移動
+  direction.set(0,0,0);
+  if(keys["KeyW"]) direction.z -= 1;
+  if(keys["KeyS"]) direction.z += 1;
+  if(keys["KeyA"]) direction.x -= 1;
+  if(keys["KeyD"]) direction.x += 1;
+
+  direction.normalize();
+
+  let move = direction.clone().applyEuler(new THREE.Euler(0, yaw, 0));
+  camera.position.add(move.multiplyScalar(0.5));
+
+  // 敵AI（追いかける）
+  let toPlayer = new THREE.Vector3().subVectors(camera.position, enemy.position).normalize();
+  enemy.position.add(toPlayer.multiplyScalar(0.1));
+
+  // 弾更新
+  bullets.forEach((b, i) => {
+    b.position.add(b.velocity);
+
+    // 当たり判定
+    if (b.position.distanceTo(enemy.position) < 3) {
+      scene.remove(enemy);
+      enemy.position.set(Math.random()*50-25,2,Math.random()*-50);
+      scene.add(enemy);
     }
   });
 
-  // ノーツ移動
-  notes.forEach((note, index) => {
-    let y = parseFloat(note.style.top);
-    y += 5;
-    note.style.top = y + "px";
-
-    if (y > 650) {
-      note.remove();
-      notes.splice(index, 1);
-      combo = 0;
-    }
-  });
-
-  comboDisplay.textContent = "Combo: " + combo;
-  requestAnimationFrame(update);
+  renderer.render(scene, camera);
 }
 
-// スタート
-function startGame() {
-  notes = [];
-  combo = 0;
-  resultDisplay.textContent = "";
-  chart.forEach(n => n.spawned = false);
-
-  startTime = Date.now();
-  playing = true;
-  update();
-}
+animate();
 </script>
-
 </body>
 </html>
