@@ -3,119 +3,185 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>アザラシスイカゲーム</title>
+<title>Seal Battle Royale</title>
 <style>
 body {
   margin: 0;
-  background: linear-gradient(#aee, #eef);
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+  background: #87ceeb;
+}
+#gameCanvas {
+  display: block;
+  background: linear-gradient(#87ceeb, #e0f7ff);
+}
+#ui {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: white;
+  font-size: 18px;
+  text-shadow: 1px 1px 2px black;
+}
+#startScreen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.7);
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  font-family: sans-serif;
+  flex-direction: column;
+  color: white;
 }
-#game {
-  text-align: center;
-}
-canvas {
-  background: #003;
-  border-radius: 10px;
+button {
+  padding: 10px 20px;
+  font-size: 18px;
+  cursor: pointer;
 }
 </style>
 </head>
 <body>
-<div id="game">
-  <h2>🦭 アザラシスイカゲーム</h2>
-  <p>クリックでアザラシを落とす！同じサイズで合体！</p>
-  <p>スコア: <span id="score">0</span></p>
-  <canvas id="canvas" width="300" height="500"></canvas>
+<div id="ui">HP: <span id="hp">100</span> | スコア: <span id="score">0</span></div>
+<div id="startScreen">
+  <h1>Seal Battle Royale</h1>
+  <button onclick="startGame()">スタート</button>
 </div>
+<canvas id="gameCanvas"></canvas>
 <script>
-const canvas = document.getElementById('canvas');
+const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-let seals = [];
+let keys = {};
+let bullets = [];
+let enemies = [];
 let score = 0;
+let gameRunning = false;
 
-class Seal {
-  constructor(x, size) {
-    this.x = x;
-    this.y = 0;
-    this.size = size;
-    this.radius = size * 10;
-    this.dy = 2;
-  }
+const player = {
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  size: 20,
+  speed: 5,
+  hp: 100
+};
 
-  update() {
-    this.y += this.dy;
-  }
+document.addEventListener('keydown', e => keys[e.key] = true);
+document.addEventListener('keyup', e => keys[e.key] = false);
+document.addEventListener('click', shoot);
 
-  draw() {
-    ctx.beginPath();
-    ctx.fillStyle = `hsl(${this.size * 40}, 70%, 60%)`;
-    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = '#000';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('🦭', this.x - 6, this.y + 4);
-  }
+function shoot(e) {
+  if (!gameRunning) return;
+  const angle = Math.atan2(e.clientY - player.y, e.clientX - player.x);
+  bullets.push({
+    x: player.x,
+    y: player.y,
+    dx: Math.cos(angle) * 10,
+    dy: Math.sin(angle) * 10
+  });
 }
 
-function spawnSeal(x) {
-  const size = Math.floor(Math.random() * 3) + 1;
-  seals.push(new Seal(x, size));
+function spawnEnemy() {
+  const x = Math.random() * canvas.width;
+  const y = Math.random() * canvas.height;
+  enemies.push({ x, y, size: 20, hp: 30 });
 }
 
-function mergeSeals() {
-  for (let i = 0; i < seals.length; i++) {
-    for (let j = i + 1; j < seals.length; j++) {
-      const a = seals[i];
-      const b = seals[j];
-
-      const dx = a.x - b.x;
-      const dy = a.y - b.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-
-      if (dist < a.radius + b.radius && a.size === b.size) {
-        a.size++;
-        a.radius = a.size * 10;
-        seals.splice(j, 1);
-        score += 10;
-        document.getElementById('score').innerText = score;
-        break;
-      }
-    }
-  }
-}
+setInterval(() => {
+  if (gameRunning) spawnEnemy();
+}, 1500);
 
 function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (!gameRunning) return;
 
-  seals.forEach(seal => {
-    seal.update();
+  if (keys['w']) player.y -= player.speed;
+  if (keys['s']) player.y += player.speed;
+  if (keys['a']) player.x -= player.speed;
+  if (keys['d']) player.x += player.speed;
 
-    if (seal.y + seal.radius > canvas.height) {
-      seal.y = canvas.height - seal.radius;
-      seal.dy = 0;
-    }
-
-    seal.draw();
+  bullets.forEach(b => {
+    b.x += b.dx;
+    b.y += b.dy;
   });
 
-  mergeSeals();
+  enemies.forEach(e => {
+    const angle = Math.atan2(player.y - e.y, player.x - e.x);
+    e.x += Math.cos(angle) * 2;
+    e.y += Math.sin(angle) * 2;
 
-  requestAnimationFrame(update);
+    const dist = Math.hypot(player.x - e.x, player.y - e.y);
+    if (dist < player.size + e.size) {
+      player.hp -= 1;
+    }
+  });
+
+  bullets.forEach((b, bi) => {
+    enemies.forEach((e, ei) => {
+      const dist = Math.hypot(b.x - e.x, b.y - e.y);
+      if (dist < e.size) {
+        e.hp -= 10;
+        bullets.splice(bi, 1);
+        if (e.hp <= 0) {
+          enemies.splice(ei, 1);
+          score += 10;
+        }
+      }
+    });
+  });
+
+  document.getElementById('hp').textContent = player.hp;
+  document.getElementById('score').textContent = score;
+
+  if (player.hp <= 0) {
+    gameRunning = false;
+    alert('ゲームオーバー！スコア: ' + score);
+    location.reload();
+  }
 }
 
-canvas.addEventListener('click', e => {
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  spawnSeal(x);
-});
+function drawSeal(x, y, size, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI * 2);
+  ctx.fill();
 
-update();
+  ctx.fillStyle = 'black';
+  ctx.beginPath();
+  ctx.arc(x - 5, y - 5, 3, 0, Math.PI * 2);
+  ctx.arc(x + 5, y - 5, 3, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawSeal(player.x, player.y, player.size, 'white');
+
+  bullets.forEach(b => {
+    ctx.fillStyle = 'yellow';
+    ctx.fillRect(b.x, b.y, 5, 5);
+  });
+
+  enemies.forEach(e => {
+    drawSeal(e.x, e.y, e.size, 'gray');
+  });
+}
+
+function gameLoop() {
+  update();
+  render();
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame() {
+  document.getElementById('startScreen').style.display = 'none';
+  gameRunning = true;
+  gameLoop();
+}
 </script>
 </body>
 </html>
-
