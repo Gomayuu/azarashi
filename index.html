@@ -2,151 +2,145 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>3D FPS（VALORANT風）</title>
+<title>本格FPSバトロワ</title>
 <style>
-body { margin: 0; overflow: hidden; }
-canvas { display: block; }
-#info {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  color: white;
-  font-family: sans-serif;
-}
+body { margin:0; overflow:hidden; background:black; }
+#ui { position:absolute; top:10px; left:10px; color:white; font-family:sans-serif; }
 </style>
 </head>
 <body>
-<div id="info">クリックして開始 / WASD移動 / SPACE射撃</div>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
-
+<div id="ui">クリックでロックオン（FPS操作）</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-let scene = new THREE.Scene();
-scene.background = new THREE.Color(0x222222);
-
-let camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-let renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
+// FPS操作
+const controls = { enabled:false };
+document.body.addEventListener("click", ()=>{
+  document.body.requestPointerLock();
+  controls.enabled = true;
+});
+
+document.addEventListener("mousemove", e=>{
+  if(!controls.enabled) return;
+  camera.rotation.y -= e.movementX * 0.002;
+  camera.rotation.x -= e.movementY * 0.002;
+});
+
 // プレイヤー
-let velocity = new THREE.Vector3();
-let direction = new THREE.Vector3();
+const player = new THREE.Object3D();
+player.position.y = 1.5;
+player.hp=100;
+player.ammo=30;
+player.kills=0;
+scene.add(player);
+
+camera.position.set(0,1.5,0);
+player.add(camera);
 
 // 床
-let floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(200, 200),
-  new THREE.MeshBasicMaterial({color: 0x444444})
-);
-floor.rotation.x = -Math.PI / 2;
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(500,500), new THREE.MeshBasicMaterial({color:0x222222, side:THREE.DoubleSide}));
+floor.rotation.x = Math.PI/2;
 scene.add(floor);
 
-// 壁（VALORANT風の簡易マップ）
-function createBox(x,y,z,color=0x888888){
-  let box = new THREE.Mesh(
-    new THREE.BoxGeometry(10,10,10),
-    new THREE.MeshBasicMaterial({color})
-  );
-  box.position.set(x,y,z);
-  scene.add(box);
+// 移動
+let keys={};
+document.addEventListener("keydown",e=>keys[e.key]=true);
+document.addEventListener("keyup",e=>keys[e.key]=false);
+
+// 敵
+let enemies=[];
+function spawnEnemy(){
+  const e = new THREE.Mesh(new THREE.BoxGeometry(1,2,1), new THREE.MeshBasicMaterial({color:0xff0000}));
+  e.position.set((Math.random()-0.5)*200,1,(Math.random()-0.5)*200);
+  e.hp=5;
+  scene.add(e);
+  enemies.push(e);
 }
-createBox(20,5,-20);
-createBox(-20,5,-30);
-createBox(0,5,-50);
-
-// 敵（NPC）
-let enemy = new THREE.Mesh(
-  new THREE.BoxGeometry(5,5,5),
-  new THREE.MeshBasicMaterial({color: 0xff0000})
-);
-enemy.position.set(0,2,-30);
-scene.add(enemy);
-
-// カメラ初期位置
-camera.position.set(0, 5, 10);
-
-// マウス操作
-let yaw = 0;
-let pitch = 0;
-
-document.body.addEventListener("click", () => {
-  document.body.requestPointerLock();
-});
-
-document.addEventListener("mousemove", (e) => {
-  if (document.pointerLockElement === document.body) {
-    yaw -= e.movementX * 0.002;
-    pitch -= e.movementY * 0.002;
-    pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
-  }
-});
-
-// キー入力
-let keys = {};
-document.addEventListener("keydown", e => keys[e.code] = true);
-document.addEventListener("keyup", e => keys[e.code] = false);
+setInterval(spawnEnemy,1500);
 
 // 弾
-let bullets = [];
+let bullets=[];
+document.addEventListener("click",()=>{
+  if(player.ammo<=0) return;
+  player.ammo--;
 
-function shoot(){
-  let bullet = new THREE.Mesh(
-    new THREE.SphereGeometry(0.5),
-    new THREE.MeshBasicMaterial({color: 0xffff00})
-  );
-  bullet.position.copy(camera.position);
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshBasicMaterial({color:0xffff00}));
+  b.position.copy(camera.getWorldPosition(new THREE.Vector3()));
 
-  let dir = new THREE.Vector3(0,0,-1);
-  dir.applyEuler(new THREE.Euler(pitch, yaw, 0));
-  bullet.velocity = dir.multiplyScalar(2);
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  b.velocity = dir.multiplyScalar(2);
 
-  scene.add(bullet);
-  bullets.push(bullet);
-}
-
-// 射撃（スペース）
-document.addEventListener("keydown", e => {
-  if (e.code === "Space") shoot();
+  scene.add(b);
+  bullets.push(b);
 });
 
-// ループ
+// 建築（前方に壁）
+document.addEventListener("contextmenu", e=>{
+  e.preventDefault();
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(3,3,0.5), new THREE.MeshBasicMaterial({color:0x888888}));
+
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  wall.position.copy(player.position.clone().add(dir.multiplyScalar(5)));
+  wall.position.y = 1.5;
+
+  scene.add(wall);
+});
+
+// ストーム
+let storm=200;
+
 function animate(){
   requestAnimationFrame(animate);
 
-  // 視点
-  camera.rotation.set(pitch, yaw, 0);
+  let speed=0.3;
+  if(keys["w"]) player.translateZ(-speed);
+  if(keys["s"]) player.translateZ(speed);
+  if(keys["a"]) player.translateX(-speed);
+  if(keys["d"]) player.translateX(speed);
 
-  // 移動
-  direction.set(0,0,0);
-  if(keys["KeyW"]) direction.z -= 1;
-  if(keys["KeyS"]) direction.z += 1;
-  if(keys["KeyA"]) direction.x -= 1;
-  if(keys["KeyD"]) direction.x += 1;
-
-  direction.normalize();
-
-  let move = direction.clone().applyEuler(new THREE.Euler(0, yaw, 0));
-  camera.position.add(move.multiplyScalar(0.5));
-
-  // 敵AI（追いかける）
-  let toPlayer = new THREE.Vector3().subVectors(camera.position, enemy.position).normalize();
-  enemy.position.add(toPlayer.multiplyScalar(0.1));
-
-  // 弾更新
-  bullets.forEach((b, i) => {
+  bullets.forEach((b,bi)=>{
     b.position.add(b.velocity);
 
-    // 当たり判定
-    if (b.position.distanceTo(enemy.position) < 3) {
-      scene.remove(enemy);
-      enemy.position.set(Math.random()*50-25,2,Math.random()*-50);
-      scene.add(enemy);
+    enemies.forEach((e,ei)=>{
+      if(b.position.distanceTo(e.position)<1){
+        e.hp--;
+        scene.remove(b);
+        bullets.splice(bi,1);
+        if(e.hp<=0){
+          scene.remove(e);
+          enemies.splice(ei,1);
+          player.kills++;
+        }
+      }
+    });
+  });
+
+  enemies.forEach(e=>{
+    let dir = player.position.clone().sub(e.position).normalize();
+    e.position.add(dir.multiplyScalar(0.08));
+    if(e.position.distanceTo(player.position)<1.5){
+      player.hp -= 0.3;
     }
   });
 
-  renderer.render(scene, camera);
-}
+  storm -= 0.05;
+  let dist = Math.sqrt(player.position.x**2 + player.position.z**2);
+  if(dist > storm) player.hp -= 0.5;
 
+  document.getElementById("ui").innerHTML = `HP:${Math.floor(player.hp)} 弾:${player.ammo} キル:${player.kills}`;
+
+  if(player.hp<=0){ alert("敗北"); location.reload(); }
+  if(player.kills>=30){ alert("勝利"); location.reload(); }
+
+  renderer.render(scene,camera);
+}
 animate();
 </script>
 </body>
